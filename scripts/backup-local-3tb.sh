@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # ==============================================================================
 # Script: backup-local-3tb.sh
-# Description: Safe hot-backup of the Minecraft world (via RCON save-off/save-all)
-#              and Pi-hole configuration directly onto the 3TB HDD with SHA-256
-#              checksums and automatic 14-day retention pruning.
+# Description: Safe hot-backup of:
+#   1. Minecraft world (via RCON save-off / save-all flush)
+#   2. Immich PostgreSQL metadata database (pg_dumpall)
+#   3. Pi-hole configuration & blocklists
+# Stored directly on the 3TB HDD (/mnt/storage3tb/backups) with SHA-256 manifest.
 # ==============================================================================
 
 set -euo pipefail
@@ -15,7 +17,7 @@ BACKUP_DIR="${STORAGE_ROOT}/backups"
 RETENTION_DAYS=14
 TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
 
-mkdir -p "${BACKUP_DIR}/minecraft" "${BACKUP_DIR}/pihole"
+mkdir -p "${BACKUP_DIR}/minecraft" "${BACKUP_DIR}/pihole" "${BACKUP_DIR}/immich-db"
 
 echo "=== [$(date)] Starting OptiPlex Homelab Local Backup on 3TB HDD ==="
 
@@ -39,7 +41,15 @@ if docker ps --format '{{.Names}}' | grep -q "^optiplex-minecraft$"; then
     docker exec optiplex-minecraft rcon-cli save-on || true
 fi
 
-# 2. Pi-hole Configuration & Blocklist Backup
+# 2. Immich PostgreSQL Database Dump (Album structure, users, EXIF index)
+if docker ps --format '{{.Names}}' | grep -q "^optiplex-immich-postgres$"; then
+    IMMICH_DUMP="${BACKUP_DIR}/immich-db/immich_pgdump_${TIMESTAMP}.sql.gz"
+    echo "[Immich] Dumping PostgreSQL database to ${IMMICH_DUMP}..."
+    docker exec -t optiplex-immich-postgres pg_dumpall -c -U postgres | gzip > "${IMMICH_DUMP}"
+    sha256sum "${IMMICH_DUMP}" > "${IMMICH_DUMP}.sha256"
+fi
+
+# 3. Pi-hole Configuration & Blocklist Backup
 if [ -d "${PIHOLE_DIR}" ]; then
     PIHOLE_ARCHIVE="${BACKUP_DIR}/pihole/pihole_config_${TIMESTAMP}.tar.gz"
     echo "[Pi-hole] Archiving DNS & blocklist configs to ${PIHOLE_ARCHIVE}..."
@@ -47,10 +57,9 @@ if [ -d "${PIHOLE_DIR}" ]; then
     sha256sum "${PIHOLE_ARCHIVE}" > "${PIHOLE_ARCHIVE}.sha256"
 fi
 
-# 3. Prune backups older than RETENTION_DAYS on the 3TB drive
+# 4. Prune backups older than RETENTION_DAYS on the 3TB drive
 echo "[Cleanup] Removing archives older than ${RETENTION_DAYS} days..."
-find "${BACKUP_DIR}/minecraft" -type f -mtime +"${RETENTION_DAYS}" -delete
-find "${BACKUP_DIR}/pihole" -type f -mtime +"${RETENTION_DAYS}" -delete
+find "${BACKUP_DIR}" -type f -mtime +"${RETENTION_DAYS}" -delete
 
 echo "=== [$(date)] Backup completed successfully! ==="
 df -h "${STORAGE_ROOT}" || true

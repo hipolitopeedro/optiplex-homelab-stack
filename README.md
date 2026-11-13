@@ -1,25 +1,28 @@
-# Dell OptiPlex Homelab Stack (Core i5-3470 | 8GB DDR3 | 3TB HDD)
+# Dell OptiPlex LGA 1155 Homelab Stack (Core i5-3470 | 8GB DDR3 | 3TB HDD)
 
 ![Docker](https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![Linux](https://img.shields.io/badge/Linux_Headless-FCC624?style=for-the-badge&logo=linux&logoColor=black)
 ![Bash](https://img.shields.io/badge/Bash_Automation-121011?style=for-the-badge&logo=gnu-bash&logoColor=white)
 
-> **Live Interactive Homelab Resource & Storage Planner (GitHub Pages):** [https://hipolitopeedro.github.io/optiplex-homelab-stack/](https://hipolitopeedro.github.io/optiplex-homelab-stack/)
+> **Live Interactive Homelab Resource & 3TB Storage Planner (GitHub Pages):** [https://hipolitopeedro.github.io/optiplex-homelab-stack/](https://hipolitopeedro.github.io/optiplex-homelab-stack/)
 >
-> **Português:** Infraestrutura completa em containers (`Docker Compose`) e scripts de automação em Bash projetados sob medida para um **Home Server Dell OptiPlex (Intel Core i5-3470 4C/4T, 8GB RAM DDR3, GeForce GT 710 1GB e HD de 3TB)**. Reúne bloqueador de anúncios para toda a rede (**Pi-hole**), servidor de arquivos local Gigabit (**Samba SMB3 + FileBrowser Web** sobre os **3TB de HDD**) e servidor de **Minecraft (PaperMC com Aikar's Flags e Auto-Pause)** com rotinas de backup local rotativo e auditoria física `S.M.A.R.T.` do disco.
+> **Português:** Infraestrutura completa de **Nuvem Pessoal, Mídia, Adblock e Jogos** em containers (`Docker Compose`) e scripts Bash projetada sob medida para um **Home Server Dell OptiPlex LGA 1155 (Intel Core i5-3470 4C/4T, 8GB RAM DDR3, GeForce GT 710 1GB e HD de 3TB)** — inspirado nos servidores caseiros clássicos de reaproveitamento de hardware (estilo *1155 do ET*), mas com engenharia limpa, limites estritos de memória RAM e auditoria de saúde física `S.M.A.R.T.` do disco de 3TB.
 >
-> **English:** Containerized infrastructure (`Docker Compose`) and Bash automation scripts tailored for a **Dell OptiPlex Home Server (Intel Core i5-3470 4C/4T, 8GB DDR3 RAM, GeForce GT 710 1GB, and 3TB HDD)**. Runs a network-wide DNS adblocker (**Pi-hole**), a Gigabit LAN file server (**Samba SMB3 + FileBrowser Web** backed by the **3TB HDD**), and a tuned **Minecraft PaperMC server (Aikar's JVM Flags + Auto-Pause)** with RCON-safe local backups and `S.M.A.R.T.` disk health monitoring.
+> **English:** Complete **Personal Cloud, Media, Adblock & Game Server** infrastructure (`Docker Compose` & Bash) tailored for a **Dell OptiPlex LGA 1155 Home Server (Intel Core i5-3470 4C/4T, 8GB DDR3 RAM, GeForce GT 710 1GB, and 3TB HDD)**. Combines **Immich** (self-hosted Google Photos), **Jellyfin** (self-hosted Netflix), **Navidrome** (self-hosted Spotify), **Samba SMB3 + FileBrowser** (3TB LAN/Web NAS), **Pi-hole** (network-wide DNS adblocker), and a tuned **PaperMC Minecraft server** with RCON-safe local backups and `S.M.A.R.T.` disk health monitoring.
 
 ---
 
-## Hardware Target & Resource Allocation / Alocação de Hardware
+## Services Included on the 3TB HDD / Serviços Inclusos
 
-| Resource / Recurso | Spec / Especificação | Allocation Strategy / Estratégia de Alocação |
-| :--- | :--- | :--- |
-| **CPU** | Intel Core i5-3470 (4C/4T @ 3.20–3.60 GHz) | `3.0 cores` para o PaperMC (Minecraft), `1.0 core` para o Samba SMB3 e `0.5 core` para Pi-hole/FileBrowser. |
-| **Memory (RAM)** | `8 GB DDR3` | `4.0 GB` JVM Heap (`4.7 GB` container limit) para o Minecraft + `256 MB` Pi-hole + `256 MB` Samba + `192 MB` FileBrowser + **`~2.6 GB` livres** para o Kernel Linux e Page Cache de disco do Samba. |
-| **Storage** | `3 TB Mechanical HDD` (`/mnt/storage3tb`) | Montado com `noatime` e `vm.dirty_ratio=15`. Dividido em `/shares` (NAS da rede), `/minecraft_data` (mundo ativo) e `/backups` (snapshots comprimidos `.tar.gz` com 14 dias de retenção). |
-| **GPU** | NVIDIA GeForce GT 710 1GB DDR3 | Saída de vídeo local de baixíssimo consumo para console físico de emergência (servidor roda em modo *headless* via SSH). |
+| Service / Serviço | Role / Função ("Equivalente") | Port / Porta | RAM Limit (`mem_limit`) | 3TB HDD Path (`/mnt/storage3tb`) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Immich** (`server` + `pg` + `redis`) | **Google Fotos Caseiro** (Backup automático das fotos e vídeos do celular via Wi-Fi) | `:2283` | `~1.0 GB` (Sem ML pesado p/ poupar os 8GB) | `/mnt/storage3tb/photos` |
+| **Samba (SMB3)** | **Servidor de Arquivos na Rede (NAS)** mapeado direto no Windows Explorer (`\\IP\Pedro_3TB`) | `:445` | `256 MB` | `/mnt/storage3tb/shares` |
+| **FileBrowser** | **Google Drive Caseiro** (Gerenciador de arquivos via navegador web e celular) | `:8081` | `192 MB` | `/mnt/storage3tb/{shares,media,photos}` |
+| **Jellyfin** | **Netflix Caseira** (Streaming de filmes, séries e vídeos pessoais para TV/Celular/PC) | `:8096` | `512 MB` | `/mnt/storage3tb/media/{movies,series,videos}` |
+| **Navidrome** | **Spotify Caseiro** (Streaming super leve de músicas MP3/FLAC) | `:4533` | `128 MB` | `/mnt/storage3tb/media/music` |
+| **Pi-hole** | **Adblock de Rede** (Bloqueia anúncios e telemetria via DNS em todos os aparelhos da casa) | `:53` / `:8080` | `200 MB` | `/mnt/storage3tb/appdata/pihole` |
+| **Minecraft (PaperMC)** | **Servidor Java 21 + Aikar's Flags** com **Auto-Pause** (dorme após 15 min vazio para liberar CPU/RAM) | `:25565` | `3.5 GB` Heap (`4.2 GB` limit) | `/mnt/storage3tb/minecraft_data` |
 
 ---
 
@@ -27,18 +30,18 @@
 
 | File / Arquivo | Description / Descrição |
 | :--- | :--- |
-| [`docker-compose.yml`](docker-compose.yml) | Stack completa com `pihole`, `samba` (SMB2/SMB3 com `TCP_NODELAY` e `aio`), `filebrowser` e `minecraft` (`PaperMC` + `USE_AIKAR_FLAGS=true` + `ENABLE_AUTOPAUSE=TRUE`). |
-| [`.env.example`](.env.example) | Variáveis de ambiente (IP local do servidor, credenciais do Samba/Pi-hole, versão do Minecraft, distância de renderização e senha RCON). |
-| [`scripts/bootstrap-optiplex.sh`](scripts/bootstrap-optiplex.sh) | Cria a estrutura de diretórios no HD de 3TB (`/mnt/storage3tb`), libera a porta `53` do `systemd-resolved` para o Pi-hole e aplica otimizações de kernel (`sysctl`) para 8GB RAM e rede Gigabit (`TCP BBR`). |
-| [`scripts/backup-local-3tb.sh`](scripts/backup-local-3tb.sh) | Faz backup consistente do mundo do Minecraft (pausa a escrita via `rcon-cli save-off` / `save-all flush` antes de compactar) e do Pi-hole direto na partição `/mnt/storage3tb/backups` com manifesto `SHA-256`. |
-| [`scripts/hdd-smart-health-audit.sh`](scripts/hdd-smart-health-audit.sh) | Audita a saúde física do HD de 3TB via `smartctl` (temperatura, horas ligado, *Reallocated Sectors* e *Pending Sectors*) e exibe o uso de espaço por pasta. |
+| [`docker-compose.yml`](docker-compose.yml) | Stack unificada com `pihole`, `samba`, `filebrowser`, `immich` (`server` + `postgres` + `redis`), `jellyfin`, `navidrome` e `minecraft` (`PaperMC` + `USE_AIKAR_FLAGS=true` + `ENABLE_AUTOPAUSE=TRUE`). |
+| [`.env.example`](.env.example) | Variáveis de ambiente centralizadas (IP do OptiPlex na LAN, senhas do Samba/Pi-hole/Immich, portas e Heap do Minecraft). |
+| [`scripts/bootstrap-optiplex.sh`](scripts/bootstrap-optiplex.sh) | Cria toda a árvore de pastas no HD de 3TB (`/mnt/storage3tb`), desativa o `systemd-resolved` na porta `53` e aplica ajustes de Kernel (`sysctl`) para 8GB DDR3 e rede Gigabit (`TCP BBR`). |
+| [`scripts/backup-local-3tb.sh`](scripts/backup-local-3tb.sh) | Backup 100% local na partição `/mnt/storage3tb/backups`: faz flush seguro do mundo do Minecraft via RCON, dump `.sql.gz` do banco PostgreSQL do Immich e backup do Pi-hole com hash `SHA-256` e retenção de 14 dias. |
+| [`scripts/hdd-smart-health-audit.sh`](scripts/hdd-smart-health-audit.sh) | Inspeciona a saúde física `S.M.A.R.T.` do HD de 3TB (`smartctl` — temperatura, horas de uso, *Reallocated Sectors* e *Pending Sectors*) e mostra o consumo de espaço por pasta. |
 
 ---
 
 ## Quick Start / Como Subir no OptiPlex
 
 ```bash
-# 1. Clonar o repositório no OptiPlex (Ubuntu Server / Debian)
+# 1. Clonar o repositório no OptiPlex (Ubuntu Server / Debian Headless)
 git clone https://github.com/hipolitopeedro/optiplex-homelab-stack.git
 cd optiplex-homelab-stack
 
@@ -46,16 +49,10 @@ cd optiplex-homelab-stack
 chmod +x scripts/*.sh
 sudo ./scripts/bootstrap-optiplex.sh
 
-# 3. Configurar suas senhas e o IP da LAN
+# 3. Configurar suas senhas e o IP fixo da LAN
 cp .env.example .env
 nano .env
 
-# 4. Subir todos os serviços em background
+# 4. Subir toda a nuvem caseira + servidor de Minecraft
 docker compose up -d
 ```
-
-### Acessos na Rede Local (Exemplo com IP `192.168.1.250`):
-* **Pi-hole Admin (Adblock)**: `http://192.168.1.250:8080/admin` *(Configure `192.168.1.250` como DNS primário no roteador da sua casa)*
-* **Servidor de Arquivos no Windows Explorer**: `\\192.168.1.250\Pedro_3TB` e `\\192.168.1.250\Public`
-* **FileBrowser (Painel Web de Arquivos 3TB)**: `http://192.168.1.250:8081`
-* **Servidor de Minecraft (Java Edition)**: `192.168.1.250:25565`

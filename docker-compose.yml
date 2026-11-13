@@ -1,12 +1,17 @@
 version: "3.9"
 
 # ==============================================================================
-# Dell OptiPlex Homelab Stack (Core i5-3470 4C/4T | 8GB DDR3 | 3TB HDD)
-# Services:
+# Dell OptiPlex LGA 1155 Homelab Stack ("1155 do ET" Edition — Clean & Stable)
+# Hardware: Intel Core i5-3470 (4C/4T) | 8GB DDR3 | GT 710 1GB | 3TB HDD
+#
+# Core Services (Always-On):
 #   1. Pi-hole       -> Network-wide DNS Adblocker (Port 53 / Web UI :8080)
-#   2. Samba (SMB3)  -> Gigabit LAN File Server on 3TB HDD (Ports 139, 445)
-#   3. FileBrowser   -> Web File Manager for 3TB HDD (Web UI :8081)
-#   4. Minecraft     -> PaperMC Server tuned with Aikar's Flags (Port 25565)
+#   2. Samba (SMB3)  -> Gigabit LAN NAS on 3TB HDD (Ports 139, 445)
+#   3. FileBrowser   -> Web Drive / Cloud File Manager on 3TB HDD (Web UI :8081)
+#   4. Immich        -> Self-Hosted Google Photos (Mobile Auto-Backup :2283)
+#   5. Jellyfin      -> Self-Hosted Media Server / Movies & Videos (:8096)
+#   6. Navidrome     -> Self-Hosted Music Streaming Server (:4533)
+#   7. Minecraft     -> PaperMC Server w/ Aikar's Flags & Auto-Pause (:25565)
 # ==============================================================================
 
 services:
@@ -31,7 +36,7 @@ services:
     volumes:
       - /mnt/storage3tb/appdata/pihole/etc-pihole:/etc/pihole
       - /mnt/storage3tb/appdata/pihole/etc-dnsmasq.d:/etc/dnsmasq.d
-    mem_limit: 256m
+    mem_limit: 200m
     cpus: 0.50
 
   # ----------------------------------------------------------------------------
@@ -49,12 +54,16 @@ services:
     volumes:
       - /mnt/storage3tb/shares/public:/mount/public
       - /mnt/storage3tb/shares/personal:/mount/personal
+      - /mnt/storage3tb/media:/mount/media
+      - /mnt/storage3tb/photos:/mount/photos:ro
       - /mnt/storage3tb/backups:/mount/backups:ro
     command: >
       -u "${SMB_USER:-pedro};${SMB_PASSWORD:-homelab123}"
       -s "Public;/mount/public;yes;no;yes;all"
       -s "Pedro_3TB;/mount/personal;yes;no;no;${SMB_USER:-pedro}"
-      -s "Backups_RO;/mount/backups;yes; yes;no;${SMB_USER:-pedro}"
+      -s "Midia_Jellyfin;/mount/media;yes;no;no;${SMB_USER:-pedro}"
+      -s "Fotos_Immich_RO;/mount/photos;yes;yes;no;${SMB_USER:-pedro}"
+      -s "Backups_RO;/mount/backups;yes;yes;no;${SMB_USER:-pedro}"
       -g "server min protocol = SMB2"
       -g "socket options = TCP_NODELAY IPTOS_LOWDELAY SO_RCVBUF=131072 SO_SNDBUF=131072"
       -g "aio read size = 16384"
@@ -63,7 +72,7 @@ services:
     cpus: 1.00
 
   # ----------------------------------------------------------------------------
-  # 3. Web File Manager for the 3TB Drive (FileBrowser)
+  # 3. Web Cloud File Manager (FileBrowser — "Google Drive Caseiro")
   # ----------------------------------------------------------------------------
   filebrowser:
     container_name: optiplex-filebrowser
@@ -77,6 +86,8 @@ services:
       TZ: "${TZ:-America/Sao_Paulo}"
     volumes:
       - /mnt/storage3tb/shares:/srv/shares
+      - /mnt/storage3tb/media:/srv/media
+      - /mnt/storage3tb/photos:/srv/photos
       - /mnt/storage3tb/backups:/srv/backups
       - /mnt/storage3tb/appdata/filebrowser/database:/database
       - /mnt/storage3tb/appdata/filebrowser/config:/config
@@ -84,7 +95,95 @@ services:
     cpus: 0.50
 
   # ----------------------------------------------------------------------------
-  # 4. Minecraft Server (PaperMC + Aikar's Flags tuned for i5-3470 + 8GB DDR3)
+  # 4. Self-Hosted Photo & Video Backup (Immich — "Google Fotos Caseiro")
+  #    Tuned for 8GB DDR3 RAM (ML container optional / unloaded when idle)
+  # ----------------------------------------------------------------------------
+  immich-server:
+    container_name: optiplex-immich-server
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:-release}
+    restart: unless-stopped
+    ports:
+      - "${IMMICH_PORT:-2283}:2283"
+    environment:
+      TZ: "${TZ:-America/Sao_Paulo}"
+      DB_HOSTNAME: immich-postgres
+      DB_USERNAME: postgres
+      DB_PASSWORD: "${IMMICH_DB_PASSWORD:-immich_postgres_pass}"
+      DB_DATABASE_NAME: immich
+      REDIS_HOSTNAME: immich-redis
+    volumes:
+      - /mnt/storage3tb/photos:/usr/src/app/upload
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      - immich-redis
+      - immich-postgres
+    mem_limit: 650m
+    cpus: 1.50
+
+  immich-redis:
+    container_name: optiplex-immich-redis
+    image: docker.io/redis:6.2-alpine
+    restart: unless-stopped
+    mem_limit: 96m
+    cpus: 0.25
+
+  immich-postgres:
+    container_name: optiplex-immich-postgres
+    image: docker.io/tensorchord/pgvecto-rs:pg14-v0.2.0
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: "${IMMICH_DB_PASSWORD:-immich_postgres_pass}"
+      POSTGRES_USER: postgres
+      POSTGRES_DB: immich
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    volumes:
+      - /mnt/storage3tb/appdata/immich-postgres:/var/lib/postgresql/data
+    mem_limit: 320m
+    cpus: 0.75
+
+  # ----------------------------------------------------------------------------
+  # 5. Self-Hosted Media Streaming (Jellyfin — "Netflix Caseira" on 3TB HDD)
+  # ----------------------------------------------------------------------------
+  jellyfin:
+    container_name: optiplex-jellyfin
+    image: lscr.io/linuxserver/jellyfin:latest
+    restart: unless-stopped
+    ports:
+      - "${JELLYFIN_PORT:-8096}:8096"
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: "${TZ:-America/Sao_Paulo}"
+    volumes:
+      - /mnt/storage3tb/appdata/jellyfin:/config
+      - /mnt/storage3tb/media/movies:/data/movies
+      - /mnt/storage3tb/media/series:/data/tvshows
+      - /mnt/storage3tb/media/videos:/data/videos
+    mem_limit: 512m
+    cpus: 2.00
+
+  # ----------------------------------------------------------------------------
+  # 6. Self-Hosted Music Server (Navidrome — "Spotify Caseiro" Ultra-Lightweight)
+  # ----------------------------------------------------------------------------
+  navidrome:
+    container_name: optiplex-navidrome
+    image: deluan/navidrome:latest
+    restart: unless-stopped
+    user: 1000:1000
+    ports:
+      - "${NAVIDROME_PORT:-4533}:4533"
+    environment:
+      ND_SCANSCHEDULE: 1h
+      ND_LOGLEVEL: info
+      ND_SESSIONTIMEOUT: 24h
+    volumes:
+      - /mnt/storage3tb/appdata/navidrome:/data
+      - /mnt/storage3tb/media/music:/music:ro
+    mem_limit: 128m
+    cpus: 0.50
+
+  # ----------------------------------------------------------------------------
+  # 7. Minecraft Server (PaperMC + Aikar's Flags + Auto-Pause for 8GB DDR3)
   # ----------------------------------------------------------------------------
   minecraft:
     container_name: optiplex-minecraft
@@ -98,22 +197,22 @@ services:
       EULA: "TRUE"
       TYPE: "PAPER"
       VERSION: "${MC_VERSION:-LATEST}"
-      MEMORY: "4G"
+      MEMORY: "${MC_HEAP:-3584M}"
       USE_AIKAR_FLAGS: "true"
       JVM_DD_OPTS: "disable.watchdog=true"
       MAX_PLAYERS: "${MC_MAX_PLAYERS:-10}"
       VIEW_DISTANCE: "${MC_VIEW_DISTANCE:-8}"
       SIMULATION_DISTANCE: "${MC_SIM_DISTANCE:-6}"
-      MOTD: "OptiPlex Homelab Server - PaperMC"
+      MOTD: "OptiPlex 1155 Homelab - PaperMC"
       ONLINE_MODE: "${MC_ONLINE_MODE:-true}"
       ENABLE_RCON: "true"
       RCON_PASSWORD: "${MC_RCON_PASSWORD:-rcon_homelab_secret}"
       RCON_PORT: 25575
-      # Auto-pause after 15 min with 0 players online to save i5-3470 power & heat
+      # Auto-pause after 15 min empty -> frees CPU & RAM for Immich/Jellyfin!
       ENABLE_AUTOPAUSE: "TRUE"
       AUTOPAUSE_TIMEOUT_EST: "900"
       TZ: "${TZ:-America/Sao_Paulo}"
     volumes:
       - /mnt/storage3tb/minecraft_data:/data
-    mem_limit: 4700m
+    mem_limit: 4200m
     cpus: 3.00
