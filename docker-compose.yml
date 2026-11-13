@@ -1,0 +1,119 @@
+version: "3.9"
+
+# ==============================================================================
+# Dell OptiPlex Homelab Stack (Core i5-3470 4C/4T | 8GB DDR3 | 3TB HDD)
+# Services:
+#   1. Pi-hole       -> Network-wide DNS Adblocker (Port 53 / Web UI :8080)
+#   2. Samba (SMB3)  -> Gigabit LAN File Server on 3TB HDD (Ports 139, 445)
+#   3. FileBrowser   -> Web File Manager for 3TB HDD (Web UI :8081)
+#   4. Minecraft     -> PaperMC Server tuned with Aikar's Flags (Port 25565)
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Network-Wide Adblock & Local DNS (Pi-hole)
+  # ----------------------------------------------------------------------------
+  pihole:
+    container_name: optiplex-pihole
+    image: pihole/pihole:latest
+    restart: unless-stopped
+    hostname: pihole-optiplex
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+      - "${PIHOLE_WEB_PORT:-8080}:80/tcp"
+    environment:
+      TZ: "${TZ:-America/Sao_Paulo}"
+      WEBPASSWORD: "${PIHOLE_PASSWORD:-homelab123}"
+      FTLCONF_LOCAL_IPV4: "${HOMELAB_LAN_IP:-192.168.1.250}"
+      PIHOLE_DNS_: "1.1.1.1;1.0.0.1;8.8.8.8"
+      DNSMASQ_LISTENING: "all"
+    volumes:
+      - /mnt/storage3tb/appdata/pihole/etc-pihole:/etc/pihole
+      - /mnt/storage3tb/appdata/pihole/etc-dnsmasq.d:/etc/dnsmasq.d
+    mem_limit: 256m
+    cpus: 0.50
+
+  # ----------------------------------------------------------------------------
+  # 2. High-Speed LAN File Server (Samba SMB3 over 3TB HDD)
+  # ----------------------------------------------------------------------------
+  samba:
+    container_name: optiplex-samba
+    image: dperson/samba:latest
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      TZ: "${TZ:-America/Sao_Paulo}"
+      USERID: "1000"
+      GROUPID: "1000"
+    volumes:
+      - /mnt/storage3tb/shares/public:/mount/public
+      - /mnt/storage3tb/shares/personal:/mount/personal
+      - /mnt/storage3tb/backups:/mount/backups:ro
+    command: >
+      -u "${SMB_USER:-pedro};${SMB_PASSWORD:-homelab123}"
+      -s "Public;/mount/public;yes;no;yes;all"
+      -s "Pedro_3TB;/mount/personal;yes;no;no;${SMB_USER:-pedro}"
+      -s "Backups_RO;/mount/backups;yes; yes;no;${SMB_USER:-pedro}"
+      -g "server min protocol = SMB2"
+      -g "socket options = TCP_NODELAY IPTOS_LOWDELAY SO_RCVBUF=131072 SO_SNDBUF=131072"
+      -g "aio read size = 16384"
+      -g "aio write size = 16384"
+    mem_limit: 256m
+    cpus: 1.00
+
+  # ----------------------------------------------------------------------------
+  # 3. Web File Manager for the 3TB Drive (FileBrowser)
+  # ----------------------------------------------------------------------------
+  filebrowser:
+    container_name: optiplex-filebrowser
+    image: filebrowser/filebrowser:s6
+    restart: unless-stopped
+    ports:
+      - "${FILEBROWSER_PORT:-8081}:80"
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: "${TZ:-America/Sao_Paulo}"
+    volumes:
+      - /mnt/storage3tb/shares:/srv/shares
+      - /mnt/storage3tb/backups:/srv/backups
+      - /mnt/storage3tb/appdata/filebrowser/database:/database
+      - /mnt/storage3tb/appdata/filebrowser/config:/config
+    mem_limit: 192m
+    cpus: 0.50
+
+  # ----------------------------------------------------------------------------
+  # 4. Minecraft Server (PaperMC + Aikar's Flags tuned for i5-3470 + 8GB DDR3)
+  # ----------------------------------------------------------------------------
+  minecraft:
+    container_name: optiplex-minecraft
+    image: itzg/minecraft-server:java21
+    restart: unless-stopped
+    tty: true
+    stdin_open: true
+    ports:
+      - "25565:25565"
+    environment:
+      EULA: "TRUE"
+      TYPE: "PAPER"
+      VERSION: "${MC_VERSION:-LATEST}"
+      MEMORY: "4G"
+      USE_AIKAR_FLAGS: "true"
+      JVM_DD_OPTS: "disable.watchdog=true"
+      MAX_PLAYERS: "${MC_MAX_PLAYERS:-10}"
+      VIEW_DISTANCE: "${MC_VIEW_DISTANCE:-8}"
+      SIMULATION_DISTANCE: "${MC_SIM_DISTANCE:-6}"
+      MOTD: "OptiPlex Homelab Server - PaperMC"
+      ONLINE_MODE: "${MC_ONLINE_MODE:-true}"
+      ENABLE_RCON: "true"
+      RCON_PASSWORD: "${MC_RCON_PASSWORD:-rcon_homelab_secret}"
+      RCON_PORT: 25575
+      # Auto-pause after 15 min with 0 players online to save i5-3470 power & heat
+      ENABLE_AUTOPAUSE: "TRUE"
+      AUTOPAUSE_TIMEOUT_EST: "900"
+      TZ: "${TZ:-America/Sao_Paulo}"
+    volumes:
+      - /mnt/storage3tb/minecraft_data:/data
+    mem_limit: 4700m
+    cpus: 3.00

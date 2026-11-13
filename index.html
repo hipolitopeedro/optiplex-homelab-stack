@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dell OptiPlex Homelab Planner — i5-3470 | 8GB DDR3 | 3TB HDD</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background-color: #090d16; color: #e2e8f0; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+    .card { background-color: #131926; border: 1px solid #232d42; border-radius: 0.75rem; }
+  </style>
+</head>
+<body class="min-h-screen pb-16">
+  <header class="border-b border-slate-800 bg-[#0d121c] sticky top-0 z-20">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider bg-blue-600 text-white rounded">Dell OptiPlex Homelab</span>
+          <span class="text-xs text-slate-400 font-mono">Core i5-3470 (4C/4T) • 8GB DDR3 • GT 710 1GB • 3TB HDD • Docker Compose</span>
+        </div>
+        <h1 class="text-xl md:text-2xl font-bold text-white mt-1">OptiPlex Homelab Capacity, NAS & Minecraft Server Planner</h1>
+      </div>
+      <a href="https://github.com/hipolitopeedro/optiplex-homelab-stack" target="_blank" class="px-3 py-1.5 text-xs font-semibold rounded border border-slate-700 hover:bg-slate-800 text-slate-200 transition">
+        Ver docker-compose & Scripts no GitHub
+      </a>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 mt-6 space-y-8">
+    <!-- Top Hardware Spec Cards -->
+    <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="card p-4">
+        <p class="text-xs uppercase tracking-wider text-slate-400">Processador</p>
+        <p class="text-lg font-bold text-white font-mono mt-1">Core i5-3470</p>
+        <p class="text-xs text-slate-400 mt-0.5">4C / 4T @ 3.2–3.6 GHz (77W TDP)</p>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs uppercase tracking-wider text-slate-400">Orçamento de RAM</p>
+        <p class="text-lg font-bold text-emerald-400 font-mono mt-1" id="kpiRamUsed">5.45 / 8.00 GB</p>
+        <p class="text-xs text-slate-400 mt-0.5" id="kpiRamFree">2.55 GB livres p/ Page Cache SMB</p>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs uppercase tracking-wider text-slate-400">Armazenamento NAS</p>
+        <p class="text-lg font-bold text-sky-400 font-mono mt-1">3.0 TB HDD</p>
+        <p class="text-xs text-slate-400 mt-0.5">Samba SMB3 + Backups Locais</p>
+      </div>
+      <div class="card p-4">
+        <p class="text-xs uppercase tracking-wider text-slate-400">Consumo Estimado 24/7</p>
+        <p class="text-lg font-bold text-amber-400 font-mono mt-1" id="kpiPower">~31.8 kWh / mês</p>
+        <p class="text-xs text-slate-400 mt-0.5" id="kpiWatts">Média: 44W (Auto-Pause Ativo)</p>
+      </div>
+    </section>
+
+    <!-- Interactive 8GB DDR3 Memory & Minecraft Simulator -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div class="card p-5 lg:col-span-5 space-y-4">
+        <div class="border-b border-slate-800 pb-3">
+          <span class="text-xs font-mono text-blue-400 uppercase">Simulador de Carga (8GB DDR3 + i5-3470)</span>
+          <h2 class="text-base font-bold text-white mt-0.5">1. Ajuste dos Containers & Servidor Minecraft</h2>
+        </div>
+
+        <div class="space-y-4 text-sm">
+          <div>
+            <div class="flex justify-between text-xs">
+              <span class="text-slate-400">Heap JVM do Minecraft (PaperMC):</span>
+              <span class="font-mono font-bold text-emerald-400" id="mcRamLabel">4.0 GB (-Xms4G -Xmx4G)</span>
+            </div>
+            <input type="range" min="2.0" max="6.0" step="0.5" id="mcRamSlider" value="4.0" oninput="updateHomelab()" class="w-full mt-1 accent-emerald-500" />
+          </div>
+
+          <div>
+            <div class="flex justify-between text-xs">
+              <span class="text-slate-400">Jogadores Simultâneos Online:</span>
+              <span class="font-mono font-bold text-sky-400" id="mcPlayersLabel">5 jogadores</span>
+            </div>
+            <input type="range" min="0" max="15" step="1" id="mcPlayersSlider" value="5" oninput="updateHomelab()" class="w-full mt-1 accent-sky-500" />
+          </div>
+
+          <div>
+            <div class="flex justify-between text-xs">
+              <span class="text-slate-400">View Distance (Chunks):</span>
+              <span class="font-mono font-bold text-purple-400" id="mcViewLabel">8 chunks (Recomendado i5-3470)</span>
+            </div>
+            <input type="range" min="5" max="14" step="1" id="mcViewSlider" value="8" oninput="updateHomelab()" class="w-full mt-1 accent-purple-500" />
+          </div>
+
+          <div>
+            <div class="flex justify-between text-xs">
+              <span class="text-slate-400">Horas de Jogo Ativo por Dia:</span>
+              <span class="font-mono font-bold text-amber-400" id="hoursPlayLabel">4 h/dia (20h em Auto-Pause)</span>
+            </div>
+            <input type="range" min="0" max="24" step="1" id="hoursPlaySlider" value="4" oninput="updateHomelab()" class="w-full mt-1 accent-amber-500" />
+          </div>
+
+          <div class="bg-[#0c1018] p-3.5 rounded-lg border border-slate-800 space-y-1.5 font-mono text-xs">
+            <div class="flex justify-between">
+              <span class="text-slate-400">TPS Estimado no i5-3470:</span>
+              <span class="font-bold text-emerald-400" id="outTps">20.0 TPS (Cravado)</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-400">Status de Memória (8GB DDR3):</span>
+              <span class="font-bold text-emerald-400" id="outOomStatus">Seguro (Sem Swap)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts: 8GB RAM Breakdown & 3TB HDD Allocation -->
+      <div class="card p-5 lg:col-span-7 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="bg-[#0c1018] p-4 rounded-lg border border-slate-800 flex flex-col justify-between">
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Divisão dos 8 GB DDR3 (MB)</h3>
+            <p class="text-[11px] text-slate-500 mb-3">A folga livre é usada automaticamente pelo Linux como cache de leitura/escrita do Samba.</p>
+          </div>
+          <canvas id="ramChart" height="200"></canvas>
+        </div>
+
+        <div class="bg-[#0c1018] p-4 rounded-lg border border-slate-800 flex flex-col justify-between">
+          <div>
+            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Particionamento Lógico do HD de 3 TB</h3>
+            <p class="text-[11px] text-slate-500 mb-3">Ponto de montagem único em <code>/mnt/storage3tb</code> com <code>noatime</code>.</p>
+          </div>
+          <canvas id="hddChart" height="200"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Generated Aikar Flags & Quick Reference -->
+    <section class="card p-5 space-y-3">
+      <div class="border-b border-slate-800 pb-2 flex items-center justify-between">
+        <span class="text-xs font-mono text-emerald-400 uppercase">Linha de Inicialização Gerada Automaticamente pelo Container</span>
+        <span class="text-xs font-mono text-slate-400">Java 21 + PaperMC + Aikar's G1GC</span>
+      </div>
+      <pre id="jvmCmdPreview" class="bg-[#0c1018] p-3.5 rounded-lg border border-slate-800 text-xs font-mono text-slate-300 overflow-x-auto"></pre>
+    </section>
+  </main>
+
+  <script>
+    let ramChart, hddChart;
+
+    function initCharts() {
+      const ctxRam = document.getElementById('ramChart').getContext('2d');
+      ramChart = new Chart(ctxRam, {
+        type: 'doughnut',
+        data: {
+          labels: ['Minecraft (Heap + JVM)', 'Linux Headless + Docker', 'Pi-hole (DNS Adblock)', 'Samba SMB3 + FileBrowser', 'Livre / Cache de Disco SMB'],
+          datasets: [{
+            data: [4550, 650, 180, 260, 2552],
+            backgroundColor: ['#10b981', '#64748b', '#ef4444', '#38bdf8', '#1e293b'],
+            borderColor: '#0c1018',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 10 }, boxWidth: 10 } } }
+        }
+      });
+
+      const ctxHdd = document.getElementById('hddChart').getContext('2d');
+      hddChart = new Chart(ctxHdd, {
+        type: 'doughnut',
+        data: {
+          labels: ['Shares SMB (Arquivos / Mídia - 2400 GB)', 'Backups Locais Rotativos (450 GB)', 'Mundos Minecraft + Plugins (100 GB)', 'AppData Pi-hole / Sistema (50 GB)'],
+          datasets: [{
+            data: [2400, 450, 100, 50],
+            backgroundColor: ['#38bdf8', '#a855f7', '#10b981', '#f59e0b'],
+            borderColor: '#0c1018',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', font: { size: 10 }, boxWidth: 10 } } }
+        }
+      });
+    }
+
+    function updateHomelab() {
+      const mcHeapGb = parseFloat(document.getElementById('mcRamSlider').value) || 4.0;
+      const players = parseInt(document.getElementById('mcPlayersSlider').value) || 0;
+      const viewDist = parseInt(document.getElementById('mcViewSlider').value) || 8;
+      const playHours = parseInt(document.getElementById('hoursPlaySlider').value) || 4;
+
+      document.getElementById('mcRamLabel').textContent = `${mcHeapGb.toFixed(1)} GB (-Xms${mcHeapGb}G -Xmx${mcHeapGb}G)`;
+      document.getElementById('mcPlayersLabel').textContent = `${players} jogador(es)`;
+      document.getElementById('mcViewLabel').textContent = `${viewDist} chunks ${viewDist <= 8 ? '(Ideal i5-3470)' : (viewDist <= 10 ? '(Moderado)' : '(Pesado p/ 4 núcleos)')}`;
+      document.getElementById('hoursPlayLabel').textContent = `${playHours} h/dia (${24 - playHours}h em Auto-Pause)`;
+
+      // Memory calculation (Total 8192 MB)
+      const mcTotalMb = Math.round(mcHeapGb * 1024 + 500); // Heap + Metaspace/Native overhead
+      const osMb = 650;
+      const piholeMb = 180;
+      const sambaMb = 260;
+      const usedMb = mcTotalMb + osMb + piholeMb + sambaMb;
+      const freeMb = Math.max(0, 8192 - usedMb);
+
+      document.getElementById('kpiRamUsed').textContent = `${(usedMb / 1024).toFixed(2)} / 8.00 GB`;
+      document.getElementById('kpiRamFree').textContent = `${(freeMb / 1024).toFixed(2)} GB livres p/ Page Cache SMB`;
+
+      const oomEl = document.getElementById('outOomStatus');
+      if (freeMb < 500) {
+        oomEl.textContent = 'PERIGO: Risco de OOM Killer / Swap Lento!';
+        oomEl.className = 'font-bold text-red-400';
+      } else if (freeMb < 1200) {
+        oomEl.textContent = 'Apertado (Pouco cache p/ o Samba)';
+        oomEl.className = 'font-bold text-amber-400';
+      } else {
+        oomEl.textContent = 'Seguro (Folga ideal p/ Linux + Samba)';
+        oomEl.className = 'font-bold text-emerald-400';
+      }
+
+      // TPS estimation on i5-3470 (Ivy Bridge 4C/4T)
+      let estTps = 20.0;
+      const loadFactor = (players * (viewDist * viewDist)) / 500;
+      if (loadFactor > 1.3) estTps = Math.max(12.5, 20.0 - (loadFactor - 1.3) * 3.8);
+      if (mcHeapGb < 3.0 && players > 4) estTps -= 2.5;
+
+      const tpsEl = document.getElementById('outTps');
+      tpsEl.textContent = `${estTps.toFixed(1)} TPS ${estTps >= 19.5 ? '(Cravado)' : (estTps >= 17.5 ? '(Leve queda em geração de mapa)' : '(Gargalo de CPU/Chunks!)')}`;
+      tpsEl.className = 'font-bold ' + (estTps >= 19.5 ? 'text-emerald-400' : (estTps >= 17.5 ? 'text-amber-400' : 'text-red-400'));
+
+      // Power estimation (OptiPlex i5-3470 + GT 710 + 3TB 3.5" HDD: ~36W idle/autopause, ~78W active load)
+      const idleWatts = 37;
+      const loadWatts = 78;
+      const avgWatts = ((playHours * loadWatts) + ((24 - playHours) * idleWatts)) / 24;
+      const monthlyKwh = (avgWatts * 24 * 30) / 1000;
+
+      document.getElementById('kpiPower').textContent = `~${monthlyKwh.toFixed(1)} kWh / mês`;
+      document.getElementById('kpiWatts').textContent = `Média: ${Math.round(avgWatts)}W (Idle 37W / Jogo 78W)`;
+
+      ramChart.data.datasets[0].data = [mcTotalMb, osMb, piholeMb, sambaMb, freeMb];
+      ramChart.update();
+
+      const heapInt = Math.round(mcHeapGb * 1024);
+      document.getElementById('jvmCmdPreview').textContent =
+        `java -Xms${heapInt}M -Xmx${heapInt}M -XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 \\\n` +
+        `  -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch \\\n` +
+        `  -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 \\\n` +
+        `  -jar paper-server.jar --nogui --max-players=${players || 10} --view-distance=${viewDist}`;
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initCharts();
+      updateHomelab();
+    });
+  </script>
+</body>
+</html>
